@@ -22,7 +22,7 @@ const contactRoutes = require("./routes/contact.routes");
 const premiumRoutes = require("./routes/premium.routes");
 const workMediaRoutes = require("./routes/workMedia.routes");
 const chatRoutes = require("./routes/chat.routes");
-const supportRoutes = require("./routes/support.routes");
+const supportRoutes = require('./routes/Support.routes')
 
 // 🔐 SESSION
 app.use(session({
