@@ -1,0 +1,173 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  phone     String   @unique
+  email     String?  @unique
+  password  String?
+  role      String   @default("USER")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  reviews         Review[]
+  bookings        BookingRequest[]
+  sentMessages    Message[]
+  supportMessages SupportMessage[]
+
+  @@map("users")
+}
+
+model Contractor {
+  id            String   @id @default(uuid())
+  name          String
+  phone         String   @unique
+  email         String?
+  location      String
+  city          String
+  category      String
+  workers       Int
+  priceMin      Int
+  priceMax      Int
+  verified      Boolean  @default(false)
+  imageUrl      String?
+  description   String?
+  experienceYrs Int
+  available     Boolean  @default(true)
+  rating        Float    @default(0)
+  reviewCount   Int      @default(0)
+
+  isPremium        Boolean   @default(false)
+  premiumPlan      String?
+  premiumStartDate DateTime?
+  premiumEndDate   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  reviews          Review[]
+  bookings         BookingRequest[]
+  premiumRequests  PremiumRequest[]
+  receivedMessages Message[]
+  workMedia        WorkMedia[]
+
+  @@map("contractors")
+}
+
+model PremiumRequest {
+  id           String   @id @default(uuid())
+  contractorId String
+  plan         String
+  duration     String
+  amount       Int
+  status       String   @default("PENDING")
+  paymentProof String?
+  adminNote    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  contractor Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
+  @@map("premium_requests")
+}
+
+model Review {
+  id           String   @id @default(uuid())
+  contractorId String
+  userId       String
+  rating       Int
+  comment      String?
+  createdAt    DateTime @default(now())
+
+  contractor Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([contractorId, userId])
+  @@map("reviews")
+}
+
+model BookingRequest {
+  id            String    @id @default(uuid())
+  contractorId  String
+  userId        String
+  workersNeeded Int
+  startDate     DateTime
+  endDate       DateTime?
+  status        String    @default("PENDING")
+  message       String?
+  workType      String?
+  location      String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  contractor Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("booking_requests")
+}
+
+model ContactMessage {
+  id        String   @id @default(uuid())
+  name      String
+  email     String
+  phone     String?
+  message   String
+  createdAt DateTime @default(now())
+
+  @@map("contact_messages")
+}
+
+model Message {
+  id           String   @id @default(uuid())
+  contractorId String
+  userId       String
+  text         String
+  senderRole   String
+  isRead       Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  contractor Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+// ✅ Work Media
+model WorkMedia {
+  id           String   @id @default(uuid())
+  contractorId String
+  type         String
+  url          String
+  thumbnail    String?
+  caption      String?
+  projectName  String?
+  createdAt    DateTime @default(now())
+
+  contractor Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
+  @@map("work_media")
+}
+
+// ✅ Support Chat
+model SupportMessage {
+  id         String   @id @default(uuid())
+  userId     String
+  text       String
+  senderRole String
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("support_messages")
+}
+
+
+
