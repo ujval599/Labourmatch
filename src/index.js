@@ -38,10 +38,13 @@ app.use(passport.session());
 
 // 🌐 CORS
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:5173",
-  credentials: true,
+  origin: [
+    "https://labourmatch.com",
+    "https://www.labourmatch.com",
+    "http://localhost:5173"
+  ],
+  credentials: true
 }));
-
 // 🧠 BODY PARSER
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
