@@ -39,7 +39,6 @@ async function getAllContractors(req, res) {
       prisma.contractor.count({ where }),
     ]);
 
-    // Auto-expire premium
     const now = new Date();
     for (const c of contractors) {
       if (c.isPremium && c.premiumEndDate && new Date(c.premiumEndDate) < now) {
@@ -134,7 +133,7 @@ async function getContractorById(req, res) {
 async function registerContractor(req, res) {
   try {
     const {
-      name, phone, email, password,
+      name, phone, email,
       location, city, workers, workType,
       priceRange, experience, description
     } = req.body;
@@ -146,16 +145,9 @@ async function registerContractor(req, res) {
       return res.status(400).json({ success: false, message: "Valid 10 digit phone number do" });
     }
 
-    // ✅ Phone already registered check
     const existing = await prisma.contractor.findUnique({ where: { phone } });
     if (existing) {
       return res.status(409).json({ success: false, message: "Yeh phone number already registered hai" });
-    }
-
-    // ✅ Password hash karo agar diya ho
-    let hashedPassword = null;
-    if (password && password.length >= 6) {
-      hashedPassword = await bcrypt.hash(password, 10);
     }
 
     // ✅ Price range parse karo
@@ -193,12 +185,12 @@ async function registerContractor(req, res) {
       multiple: "MULTIPLE", MULTIPLE: "MULTIPLE",
     };
 
+    // ✅ Password field nahi — production DB mein column nahi hai
     const contractor = await prisma.contractor.create({
       data: {
         name,
         phone,
         email: email || null,
-        password: hashedPassword,
         location,
         city: city || location.split(",").pop()?.trim() || "Unknown",
         category: categoryMap[workType] || "MULTIPLE",
@@ -232,15 +224,11 @@ async function verifyContractor(req, res) {
       data: { verified: true },
     });
 
-    // ✅ Contractor ko email bhejo — profile live hone ki notification
     if (contractor.email && process.env.GMAIL_USER && process.env.GMAIL_APP_PASS) {
       try {
         const transporter = nodemailer.createTransport({
           service: "gmail",
-          auth: {
-            user: process.env.GMAIL_USER,
-            pass: process.env.GMAIL_APP_PASS,
-          },
+          auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASS },
         });
 
         await transporter.sendMail({
@@ -250,40 +238,18 @@ async function verifyContractor(req, res) {
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 550px; margin: 0 auto;">
               <div style="background: linear-gradient(135deg, #0d9488, #f59e0b); padding: 24px; border-radius: 12px 12px 0 0; text-align: center;">
-                <h1 style="color: white; margin: 0; font-size: 26px;">🎉 Congratulations!</h1>
-                <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 15px;">Aapki LabourMatch profile verify ho gayi!</p>
+                <h1 style="color: white; margin: 0;">🎉 Congratulations!</h1>
+                <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0;">Aapki LabourMatch profile verify ho gayi!</p>
               </div>
               <div style="background: white; padding: 28px; border: 1px solid #e5e7eb; border-radius: 0 0 12px 12px;">
                 <p style="font-size: 16px; color: #374151;">Hello <strong>${contractor.name}</strong>,</p>
                 <p style="color: #374151;">Hamari team ne aapki profile verify kar di hai. Ab aapki profile <strong>LabourMatch pe LIVE</strong> hai!</p>
-
-                <div style="background: #f0fdf4; border-left: 4px solid #22c55e; padding: 16px; border-radius: 8px; margin: 20px 0;">
-                  <p style="margin: 0; color: #166534; font-weight: bold; font-size: 15px;">✅ Aapki profile ab customers ko dikhai degi</p>
-                  <p style="margin: 8px 0 0; color: #166534; font-size: 13px;">Customers aapko search karke directly contact kar sakte hain.</p>
-                </div>
-
-                <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin: 16px 0;">
-                  <p style="margin: 0 0 8px; font-weight: bold; color: #374151;">Aapki Profile Details:</p>
-                  <table style="width: 100%; border-collapse: collapse;">
-                    <tr><td style="padding: 4px 0; color: #6b7280;">Name:</td><td style="padding: 4px 0; font-weight: bold;">${contractor.name}</td></tr>
-                    <tr><td style="padding: 4px 0; color: #6b7280;">City:</td><td style="padding: 4px 0;">${contractor.city}</td></tr>
-                    <tr><td style="padding: 4px 0; color: #6b7280;">Category:</td><td style="padding: 4px 0;">${contractor.category}</td></tr>
-                    <tr><td style="padding: 4px 0; color: #6b7280;">Workers:</td><td style="padding: 4px 0;">${contractor.workers}</td></tr>
-                    <tr><td style="padding: 4px 0; color: #6b7280;">Price Range:</td><td style="padding: 4px 0;">₹${contractor.priceMin} - ₹${contractor.priceMax}/day</td></tr>
-                  </table>
-                </div>
-
                 <div style="text-align: center; margin-top: 24px;">
                   <a href="${process.env.FRONTEND_URL || "http://localhost:5173"}/contractor/${contractor.id}"
-                    style="background: linear-gradient(135deg, #0d9488, #f59e0b); color: white; padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 15px; display: inline-block;">
+                    style="background: linear-gradient(135deg, #0d9488, #f59e0b); color: white; padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: bold;">
                     Apni Profile Dekho →
                   </a>
                 </div>
-
-                <p style="color: #9ca3af; font-size: 12px; margin-top: 24px; text-align: center;">
-                  Koi problem ho to humse contact karo: ${process.env.GMAIL_USER}
-                  <br/>LabourMatch Team
-                </p>
               </div>
             </div>
           `,
