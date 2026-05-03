@@ -22,7 +22,10 @@ const contactRoutes = require("./routes/contact.routes");
 const premiumRoutes = require("./routes/premium.routes");
 const workMediaRoutes = require("./routes/workMedia.routes");
 const chatRoutes = require("./routes/chat.routes");
-const supportRoutes = require('./routes/Support.routes')
+const supportRoutes = require('./routes/Support.routes');
+
+// ✅ Trust proxy — Render ke liye zaroori
+app.set("trust proxy", 1);
 
 // 🔐 SESSION
 app.use(session({
@@ -46,7 +49,9 @@ app.use(cors({
     "http://localhost:5173"
   ],
   credentials: true
-}));// 🧠 BODY PARSER
+}));
+
+// 🧠 BODY PARSER
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -61,7 +66,7 @@ app.use("/api", limiter);
 
 const otpLimiter = rateLimit({ windowMs: 60 * 1000, max: 3 });
 
-// 🔥 GOOGLE STRATEGY — User DB mein save karo
+// 🔥 GOOGLE STRATEGY
 passport.use(new GoogleStrategy(
   {
     clientID: process.env.GOOGLE_CLIENT_ID,
@@ -76,16 +81,14 @@ passport.use(new GoogleStrategy(
 
       if (!email) return done(null, false);
 
-      // ✅ User dhundo ya banao
       let user = await prisma.user.findUnique({ where: { email } });
 
       if (!user) {
-        // Naya user banao
         user = await prisma.user.create({
           data: {
             name,
             email,
-            phone: `google_${googleId}`, // phone required hai schema mein
+            phone: `google_${googleId}`,
             role: "USER",
           },
         });
@@ -118,7 +121,7 @@ app.get("/auth/google",
   passport.authenticate("google", { scope: ["profile", "email"] })
 );
 
-// ✅ GOOGLE CALLBACK — Token generate karo aur frontend pe bhejo
+// ✅ GOOGLE CALLBACK
 app.get("/auth/google/callback",
   passport.authenticate("google", { failureRedirect: `${process.env.FRONTEND_URL || "http://localhost:5173"}/auth?error=google_failed` }),
   async (req, res) => {
@@ -128,7 +131,6 @@ app.get("/auth/google/callback",
         return res.redirect(`${process.env.FRONTEND_URL || "http://localhost:5173"}/auth?error=no_user`);
       }
 
-      // ✅ JWT token generate karo
       const token = generateToken({ id: user.id, role: user.role });
 
       const userData = encodeURIComponent(JSON.stringify({
@@ -139,8 +141,6 @@ app.get("/auth/google/callback",
         role: user.role,
       }));
 
-      // ✅ Frontend pe redirect karo token aur user data ke saath
-      // Role selection page pe bhejo
       const FRONTEND = process.env.FRONTEND_URL || "http://localhost:5173";
       res.redirect(`${FRONTEND}/auth/google/success?token=${token}&user=${userData}`);
 
