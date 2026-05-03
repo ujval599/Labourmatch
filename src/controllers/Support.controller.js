@@ -1,10 +1,13 @@
-// src/controllers/support.controller.js
+// src/controllers/Support.controller.js
 const prisma = require("../utils/prisma");
 const nodemailer = require("nodemailer");
 
+// ✅ FIX: port 465 use karo — Render pe 587 block hota hai
 function createTransporter() {
   return nodemailer.createTransport({
-    service: "gmail",
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true,
     auth: {
       user: process.env.GMAIL_USER,
       pass: process.env.GMAIL_APP_PASS,
@@ -20,7 +23,6 @@ async function getMySupport(req, res) {
       orderBy: { createdAt: "asc" },
     });
 
-    // Mark admin messages as read
     await prisma.supportMessage.updateMany({
       where: { userId: req.user.id, senderRole: "admin", isRead: false },
       data: { isRead: true },
@@ -46,11 +48,7 @@ async function sendSupportMessage(req, res) {
     const user = await prisma.user.findUnique({ where: { id: userId } });
 
     const message = await prisma.supportMessage.create({
-      data: {
-        userId,
-        text: text.trim(),
-        senderRole: "user",
-      },
+      data: { userId, text: text.trim(), senderRole: "user" },
     });
 
     // ✅ Admin ko email notification
@@ -77,6 +75,7 @@ async function sendSupportMessage(req, res) {
             </div>
           `,
         });
+        console.log("✅ Support email sent!");
       } catch (emailErr) {
         console.error("Support email failed:", emailErr.message);
       }
@@ -96,21 +95,13 @@ async function getAllSupportChats(req, res) {
       return res.status(403).json({ success: false, message: "Admin only" });
     }
 
-    // Har user ka latest message aur unread count
     const users = await prisma.user.findMany({
-      where: {
-        supportMessages: { some: {} },
-      },
+      where: { supportMessages: { some: {} } },
       include: {
-        supportMessages: {
-          orderBy: { createdAt: "desc" },
-          take: 1,
-        },
+        supportMessages: { orderBy: { createdAt: "desc" }, take: 1 },
         _count: {
           select: {
-            supportMessages: {
-              where: { senderRole: "user", isRead: false },
-            },
+            supportMessages: { where: { senderRole: "user", isRead: false } },
           },
         },
       },
@@ -137,7 +128,6 @@ async function getUserSupportChat(req, res) {
       orderBy: { createdAt: "asc" },
     });
 
-    // Mark user messages as read
     await prisma.supportMessage.updateMany({
       where: { userId, senderRole: "user", isRead: false },
       data: { isRead: true },
@@ -170,11 +160,7 @@ async function adminReply(req, res) {
     }
 
     const message = await prisma.supportMessage.create({
-      data: {
-        userId,
-        text: text.trim(),
-        senderRole: "admin",
-      },
+      data: { userId, text: text.trim(), senderRole: "admin" },
     });
 
     // ✅ User ko email notification
@@ -205,6 +191,7 @@ async function adminReply(req, res) {
             </div>
           `,
         });
+        console.log("✅ Reply email sent!");
       } catch (emailErr) {
         console.error("Reply email failed:", emailErr.message);
       }
