@@ -1,7 +1,5 @@
 // labourmatch-backend/src/controllers/workMedia.controller.js
-const path = require("path"); // ✅ ADD
 const prisma = require("../utils/prisma");
-const BASE_URL = process.env.BASE_URL || "http://localhost:5000";
 
 // ✅ Contractor ke saare work media fetch karo
 async function getWorkMedia(req, res) {
@@ -18,7 +16,7 @@ async function getWorkMedia(req, res) {
   }
 }
 
-// ✅ Naya work media upload karo
+// ✅ Naya work media upload karo — Cloudinary use karo
 async function uploadWorkMedia(req, res) {
   try {
     const { contractorId } = req.params;
@@ -33,11 +31,17 @@ async function uploadWorkMedia(req, res) {
       return res.status(400).json({ success: false, message: "File upload karo" });
     }
 
-    // ✅ FIXED: sirf filename use karo — double uploads/ nahi aayega
-    const fileName = path.basename(req.file.path);
-    const fileUrl = `${BASE_URL}/uploads/${fileName}`;
+    // ✅ FIX: Cloudinary URL use karo — req.file.path = Cloudinary URL
+    let fileUrl;
+    if (req.file.path && req.file.path.startsWith("http")) {
+      // Cloudinary se aaya URL
+      fileUrl = req.file.path;
+    } else {
+      // Fallback: local path
+      fileUrl = req.file.path;
+    }
 
-    const mediaType = type || (req.file.mimetype.startsWith("video") ? "video" : "image");
+    const mediaType = type || (req.file.mimetype?.startsWith("video") ? "video" : "image");
 
     const media = await prisma.workMedia.create({
       data: {
