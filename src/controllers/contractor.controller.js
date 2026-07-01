@@ -12,7 +12,6 @@ async function getAllContractors(req, res) {
     const skip = (pageNum - 1) * limitNum;
 
     const where = { available: true, verified: true };
-
     if (city) where.city = { contains: city };
     if (category) where.category = category.toUpperCase();
     if (search) {
@@ -150,17 +149,21 @@ async function registerContractor(req, res) {
       return res.status(409).json({ success: false, message: "Yeh phone number already registered hai" });
     }
 
-    // ✅ Price range parse karo
     let priceMin = 500, priceMax = 700;
     if (priceRange) {
-      const parts = priceRange.replace(/[₹\s]/g, "").split("-");
-      if (parts.length === 2) {
+      const cleaned = priceRange.replace(/[₹\s]/g, "");
+      if (cleaned.includes("-")) {
+        const parts = cleaned.split("-");
         priceMin = parseInt(parts[0]) || 500;
         priceMax = parseInt(parts[1]) || 700;
+      } else {
+        // Single value — same for min and max
+        const val = parseInt(cleaned) || 500;
+        priceMin = val;
+        priceMax = val;
       }
     }
 
-    // ✅ Image URL
     const BASE_URL = process.env.BASE_URL || "http://localhost:5000";
     let imageUrl = null;
     if (req.file) {
@@ -171,7 +174,6 @@ async function registerContractor(req, res) {
       }
     }
 
-    // ✅ Category map
     const categoryMap = {
       construction: "CONSTRUCTION", CONSTRUCTION: "CONSTRUCTION",
       shifting: "SHIFTING", SHIFTING: "SHIFTING",
@@ -182,10 +184,10 @@ async function registerContractor(req, res) {
       painting: "PAINTING", PAINTING: "PAINTING",
       carpentry: "CARPENTRY", CARPENTRY: "CARPENTRY",
       cleaning: "CLEANING", CLEANING: "CLEANING",
+      interior: "INTERIOR", INTERIOR: "INTERIOR",
       multiple: "MULTIPLE", MULTIPLE: "MULTIPLE",
     };
 
-    // ✅ Password field nahi — production DB mein column nahi hai
     const contractor = await prisma.contractor.create({
       data: {
         name,
@@ -227,36 +229,17 @@ async function verifyContractor(req, res) {
     if (contractor.email && process.env.GMAIL_USER && process.env.GMAIL_APP_PASS) {
       try {
         const transporter = nodemailer.createTransport({
-          service: "gmail",
+          host: "smtp.gmail.com", port: 465, secure: true,
           auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASS },
         });
-
         await transporter.sendMail({
           from: `"LabourMatch" <${process.env.GMAIL_USER}>`,
           to: contractor.email,
           subject: `🎉 Aapki Profile Live Ho Gayi! - LabourMatch`,
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 550px; margin: 0 auto;">
-              <div style="background: linear-gradient(135deg, #0d9488, #f59e0b); padding: 24px; border-radius: 12px 12px 0 0; text-align: center;">
-                <h1 style="color: white; margin: 0;">🎉 Congratulations!</h1>
-                <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0;">Aapki LabourMatch profile verify ho gayi!</p>
-              </div>
-              <div style="background: white; padding: 28px; border: 1px solid #e5e7eb; border-radius: 0 0 12px 12px;">
-                <p style="font-size: 16px; color: #374151;">Hello <strong>${contractor.name}</strong>,</p>
-                <p style="color: #374151;">Hamari team ne aapki profile verify kar di hai. Ab aapki profile <strong>LabourMatch pe LIVE</strong> hai!</p>
-                <div style="text-align: center; margin-top: 24px;">
-                  <a href="${process.env.FRONTEND_URL || "http://localhost:5173"}/contractor/${contractor.id}"
-                    style="background: linear-gradient(135deg, #0d9488, #f59e0b); color: white; padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: bold;">
-                    Apni Profile Dekho →
-                  </a>
-                </div>
-              </div>
-            </div>
-          `,
+          html: `<div style="font-family: Arial, sans-serif; max-width: 550px; margin: 0 auto;"><div style="background: linear-gradient(135deg, #0d9488, #f59e0b); padding: 24px; border-radius: 12px 12px 0 0; text-align: center;"><h1 style="color: white; margin: 0;">🎉 Congratulations!</h1></div><div style="background: white; padding: 28px; border: 1px solid #e5e7eb; border-radius: 0 0 12px 12px;"><p>Hello <strong>${contractor.name}</strong>, aapki profile ab LabourMatch pe LIVE hai!</p><div style="text-align: center; margin-top: 24px;"><a href="${process.env.FRONTEND_URL}/contractor/${contractor.id}" style="background: linear-gradient(135deg, #0d9488, #f59e0b); color: white; padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: bold;">Apni Profile Dekho</a></div></div></div>`,
         });
-        console.log(`✅ Verification email sent to: ${contractor.email}`);
       } catch (emailErr) {
-        console.error("❌ Verification email failed:", emailErr.message);
+        console.error("Verification email failed:", emailErr.message);
       }
     }
 
@@ -297,7 +280,12 @@ async function updateContractorProfile(req, res) {
     const { id } = req.params;
     const { description, available } = req.body;
 
-    if (req.user.id !== id && req.user.role !== "ADMIN") {
+    // ✅ FIX: phone se contractor dhundo aur ID match karo
+    const contractor = await prisma.contractor.findUnique({ where: { id } });
+    if (!contractor) return res.status(404).json({ success: false, message: "Contractor not found" });
+
+    const isOwner = contractor.phone === req.user.phone;
+    if (!isOwner && req.user.role !== "ADMIN") {
       return res.status(403).json({ success: false, message: "Not authorized" });
     }
 
@@ -321,7 +309,12 @@ async function updateContractorPhoto(req, res) {
   try {
     const { id } = req.params;
 
-    if (req.user.id !== id && req.user.role !== "ADMIN") {
+    // ✅ FIX: phone se contractor dhundo — user ID aur contractor ID alag hote hain
+    const contractor = await prisma.contractor.findUnique({ where: { id } });
+    if (!contractor) return res.status(404).json({ success: false, message: "Contractor not found" });
+
+    const isOwner = contractor.phone === req.user.phone;
+    if (!isOwner && req.user.role !== "ADMIN") {
       return res.status(403).json({ success: false, message: "Not authorized" });
     }
 
@@ -329,11 +322,12 @@ async function updateContractorPhoto(req, res) {
       return res.status(400).json({ success: false, message: "No image uploaded" });
     }
 
-    const BASE_URL = process.env.BASE_URL || "http://localhost:5000";
+    // ✅ Cloudinary URL ya local URL
     let imageUrl;
     if (req.file.path && req.file.path.startsWith("http")) {
       imageUrl = req.file.path;
     } else {
+      const BASE_URL = process.env.BASE_URL || "http://localhost:5000";
       imageUrl = `${BASE_URL}/uploads/${path.basename(req.file.path)}`;
     }
 
