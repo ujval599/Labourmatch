@@ -20,7 +20,15 @@ const path = require("path");
 // ── Public routes ──
 router.get("/", getAllContractors);
 router.get("/cities", getCities);
-router.post("/register", upload.single("image"), registerContractor);
+
+// ✅ Register — profile image + multiple work media
+router.post("/register",
+  upload.fields([
+    { name: "image", maxCount: 1 },
+    { name: "workMedia", maxCount: 10 },
+  ]),
+  registerContractor
+);
 
 // ── Phone check ──
 router.get("/check", async (req, res) => {
@@ -34,16 +42,13 @@ router.get("/check", async (req, res) => {
   }
 });
 
-// ✅ FIXED: Contractor apna full profile dekhe
+// ✅ Contractor apna full profile dekhe
 router.get("/my-profile", authenticate, async (req, res) => {
   try {
     let contractorPhone;
-
-    // ✅ Contractor token hai toh directly phone use karo
     if (req.user.isContractor) {
       contractorPhone = req.user.phone;
     } else {
-      // Normal user hai toh user table se phone lo
       const user = await prisma.user.findUnique({ where: { id: req.user.id } });
       if (!user) return res.status(404).json({ success: false, message: "User nahi mila" });
       contractorPhone = user.phone;
@@ -75,17 +80,11 @@ router.get("/my-profile", authenticate, async (req, res) => {
       ? contractor.imageUrl.startsWith("http") ? contractor.imageUrl : `${BASE_URL}/uploads/${path.basename(contractor.imageUrl)}`
       : null;
 
-    // ✅ Group messages by user
     const messagesByUser = {};
     contractor.receivedMessages.forEach(msg => {
       const uid = msg.userId;
       if (!messagesByUser[uid]) {
-        messagesByUser[uid] = {
-          user: msg.user,
-          messages: [],
-          unreadCount: 0,
-          lastMessage: null,
-        };
+        messagesByUser[uid] = { user: msg.user, messages: [], unreadCount: 0, lastMessage: null };
       }
       messagesByUser[uid].messages.push(msg);
       if (!msg.isRead && msg.senderRole === "user") messagesByUser[uid].unreadCount++;
@@ -96,11 +95,7 @@ router.get("/my-profile", authenticate, async (req, res) => {
 
     return res.json({
       success: true,
-      data: {
-        ...contractor,
-        imageUrl,
-        chatUsers: Object.values(messagesByUser),
-      }
+      data: { ...contractor, imageUrl, chatUsers: Object.values(messagesByUser) }
     });
   } catch (error) {
     console.error("my-profile error:", error);
